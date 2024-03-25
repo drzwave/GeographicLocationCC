@@ -15,6 +15,7 @@
 
 #include "CC_GeographicLoc.h"
 #include "UART_DRZ.h" // GPS receiver is on EUSART1
+#include <ZW_TransportEndpoint.h>
 
 // Comment this out if NOT connected to a GPS receiver and only stores the location via SET.
 #define GPS_ENABLED

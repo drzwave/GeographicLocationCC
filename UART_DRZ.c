@@ -17,7 +17,7 @@
  */
 
 #include <em_cmu.h>
-#include <ev_man.h>
+#include <zaf_event_distributor_soc.h>
 #include "UART_DRZ.h"
 #include "events.h"
 
@@ -118,7 +118,7 @@ void EUSART1_RX_IRQHandler(void){
       // TODO - add testing for error conditions here - like the FIFO is full... Set a bit and call an event
   }
   // TODO - check for error conditions
-  ZCB_eventSchedulerEventAdd(EVENT_EUSART1_CHARACTER_RECEIVED); // Tell the application there is data in RxFIFO
+  zaf_event_distributor_enqueue_app_event(EVENT_EUSART1_CHARACTER_RECEIVED); // Tell the application there is data in RxFIFO
 }
 
 // Return a byte from the RxFIFO - be sure there is one available by calling RxDepth first
