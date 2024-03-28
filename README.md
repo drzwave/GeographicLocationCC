@@ -24,6 +24,7 @@ Typically the accuracy of most GPS receivers is at best a few meters, the centim
     - WSTK Pin 8=P3=ZG23 PC2=TX
 
 # Step-by-Step Installation into the SwitchOnOff sample project using GSDK 4.4.1
+
 1. Create the sample app, set the RF Region, enable debug printing
     - Check that it builds - ideally download and join a network and send On/Offs
 2. Copy (or softlink) the .c and .h files of this repo into the project 
@@ -45,6 +46,13 @@ Typically the accuracy of most GPS receivers is at best a few meters, the centim
 5. Replace the app.c in the sample project with the one from the repo
 
 
+# Technical Information
+
+GPS data from common GPS receivers provides longitude and latitude data in the form of a "NMEA Sentence".
+Data is typically transmitted over a UART at 4800 baud once per second. 
+Often the data and formats can be configured.
+Some GPS recivers use I2C for serial data transfer. The data is the same but the bus master must poll the GPS receiver to get the data.
+
 # Reference Documents
 
 - [HowTo Implement a New Z-Wave Command Class](https://docs.silabs.com/z-wave/7.21.1/zwave-api/md-content-how-to-implement-a-new-command-class) - docs.silabs.com
@@ -60,17 +68,31 @@ Typically the accuracy of most GPS receivers is at best a few meters, the centim
 - Convert data to GeoLocCC format
 - Code Python script to talk to a serialAPI to get GeoCC every 30s and place it in a .csv file which can then be plotted on a map
 
-
 # Journal 
+
 This section is temporary and will be deleted once its working. Just a place for me to keep some notes.
 
 
-- 2024-03-25 - Project compiles - installed into SwOnOff\_ZGM230\_441\_GeoCC project for initial debug
+<b>2024-03-28</b> - Calculating the CC values from the GPS data
+
+- Capturing the GPGGA sentence and calculating the checksum correctly. Next up is to convert the values.
+
+<b>2024-03-26</b> - GPS Data via UART
+
+- Modified app.c to get the data. That will have to be part of the repo.
+- GPS Sentence is: ```$GPGGA,121017.00,4310.24176,N,07052.27544,W,1,08,1.10,00048,M,-032,M,,*52```
+- Time = UTC time HHMMSS.SS
+- Latitude = ```DDMM.MMMMM,N``` DD are degrees, MM.MMM are minutes and a fraction, N is North or S for South which would be negative
+- Longitude = ```DDDMM.MMMMM,W``` DDD are degrees, MM.MMM are minutes and a fraction, W is West which is negative or E for east
+- Note that the number of digits in the fraction can vary
+- Altitude = ```00048, M``` altitude in meters
+- Checksum is the XOR of all characters after the $ and before \*
+
+<b>2024-03-25</b> - Project compiles - installed into SwOnOff\_ZGM230\_441\_GeoCC project for initial debug
+
 - Purchased new GPS modules as they are now have QWIIC connectors so they can simply plug directly into a TBZ or ZReach
 - But in the short term I need to use the UART based one I have now
 - I have a WSTK with the header for the GPS module but the project gets completely stuck initializing the BURTC because there is no LFXO on the board I am using.
 - Thus, I need to recreate the project again using this WSTK and a RB4250 which is what I have available. Originally I had used a TBZ (2603) which has a 32khz crystal. But now I need to plug in the GPS into a WSTK I already soldered the header into. This will be easier when I get the QWIIC GPS receivers.
 - So once again starting from scratch in SSv5 because too much is done automagically based on the devkit and trying to fix the project just breaks it more so it's easier to start over.
 - I switched back to my github Workspace where I have a lot more other projects and where the GeoCC repo is located.
-- 
--

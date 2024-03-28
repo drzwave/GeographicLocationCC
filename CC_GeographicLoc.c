@@ -29,6 +29,8 @@
 // uncomment to get some printouts
 #define DEBUGPRINT
 #include "DebugPrint.h"
+#include <string.h>
+#include <stdlib.h>
 
 // GPS variables
 static int32_t longitude=0;
@@ -38,7 +40,16 @@ static uint8_t alt_valid=0;
 static uint8_t long_valid=0;
 static uint8_t lat_valid=0;
 static uint8_t gps_quality=0;
+//static uint8_t gps_time[]="HH:MM:SS";
+//static uint8_t gps_satelites=0;
 
+// Max length is 255
+#define SENTENCE_BUF_LENGTH 80
+static char SentenceBufRaw[SENTENCE_BUF_LENGTH]; // holds the GPS sentence for later parsing
+static uint8_t NMEA_index; // index pointer into the buffer
+/*
+ * @brief handler for Geograpahic Location Command class when a command is received via Z-Wave
+ */
 static received_frame_status_t CC_GeographicLoc_handler(
     cc_handler_input_t * input,
     cc_handler_output_t * output)
@@ -59,6 +70,7 @@ static received_frame_status_t CC_GeographicLoc_handler(
             output->length = sizeof(ZW_GEOGRAPHIC_LOCATION_REPORT_V2_FRAME); // triggers the send
             break;
         case GEOGRAPHIC_LOCATION_SET_V2:
+            // more to come here - reject it if read only
             break;
         default:
             return RECEIVED_FRAME_STATUS_NO_SUPPORT;
@@ -89,6 +101,146 @@ static void reset(void)
 {
   // called when a factory reset is performed - reset the NVM?
 }
+
+typedef enum {  // NMEA state machine states
+    NMEA_search,
+    NMEA_fetch,
+    NMEA_checksum1,
+    NMEA_checksum2,
+    NMEA_error
+} NMEA_state_e;
+
+static uint8_t NMEAState = NMEA_search;
+
+/* @brief Add the character C to the "sentence" buffer as each byte arrives via a UART
+ * returns true when a complete buffer has been filled otherwise false
+ * Typical NMEA sentence: 
+ * $GPGGA,121017.00,4310.24176,N,07052.27544,W,1,08,1.10,00048,M,-032,M,,*52
+ *        TIME     , Lat        , Long        , ,  ,    , Alt   ,       ,Checksum
+ */
+bool NMEA_build(char c) {
+    bool rtn = false;
+    switch(NMEAState) {
+        case NMEA_search: // search for the $
+            if ('$'==c) {
+                NMEA_index=0;
+                SentenceBufRaw[NMEA_index++]=c;
+                NMEAState=NMEA_fetch;
+            }
+            break;
+        case NMEA_fetch: // collect the sentence from the $ to the *
+            if (NMEA_index>=SENTENCE_BUF_LENGTH-3) { // don't overrun the buffer
+                NMEAState=NMEA_search;
+            } else if ('*'==c) { // start of checksum
+                NMEAState=NMEA_checksum1;
+            } 
+            SentenceBufRaw[NMEA_index++]=c;
+            break;
+        case NMEA_checksum1: // capture checksum 1st digit
+            NMEAState=NMEA_checksum2;
+            SentenceBufRaw[NMEA_index++]=c;
+            break;
+        case NMEA_checksum2: // capture checksum 2nd digit
+            NMEAState=NMEA_search;
+            SentenceBufRaw[NMEA_index++]=c;
+            rtn=true;
+            break;
+        default:
+            NMEAState=NMEA_search;
+            break;
+    }
+    return(rtn);
+}
+
+/* @brief convert hex string of up to 8 hex chars to an integer. Zero if non-hex chars are found.
+ */
+uint32_t hextoi(char * ptr) {
+    uint32_t rtn = 0;
+    for (uint8_t i=0; i<8; i++) {
+        char c = ptr[i];
+        if ('\0' == c) break; // end of string = done
+        if (c >= '0' && c <='9') c = c - '0';
+        else if (c >= 'A' && c <= 'F') c = c - 'A' +10;
+        else if (c >= 'a' && c <= 'f') c = c - 'a' +10;
+        else { // non hex digit - return 0
+            c=0;
+            rtn=0;
+            break;
+        }
+        rtn = (rtn<<4) | (c &0x0f); // shift in the nibble
+    }
+    return(rtn);
+}
+
+/* @brief return TRUE if the sentence starts with $GPGGA
+ */
+bool NMEA_GPGGA(void) { 
+    if (0==strncmp("$GPGGA",&SentenceBufRaw[0],6U)) return(true);
+    else return(false);
+}
+
+/* @brief return TRUE if the sentence checksum is OK
+ */
+bool NMEA_checksum(void) {
+    uint32_t i;
+    uint8_t sum=0;
+    for (i=1; ((i<SENTENCE_BUF_LENGTH) && ('*'!=SentenceBufRaw[i])); i++) {
+        sum ^= SentenceBufRaw[i];
+    }
+    SentenceBufRaw[i+3]='\0'; // NULL the end of the string
+    DPRINTF("\ni=%d, buf[i]=%s ",i,&SentenceBufRaw[i]);
+    int check = hextoi(&SentenceBufRaw[i+1]);
+    DPRINTF("\nSum=%x, Check=%x ",sum,check);
+    if (check==sum) DPRINT("GOOD!\n");
+    else DPRINT(" BAD!!!\n");
+    if (check == sum) return(true);
+    else return(false);
+}
+
+#if 0
+/* @brief check the checksum of the NMEA sentence and return TRUE if OK.
+ */
+bool NMEA_check(char * ptr) {
+    bool rtn = false;
+            if (((c>='0') && (c<=9)) || (','==c) || ('.'==c)) {
+                if ('.'==c) { // ignore the fraction of a second
+                    gps_time[0] = sentenceRawBuf[NMEA_field]; // gps_time="HH:MM:SS"
+                    gps_time[1] = sentenceRawBuf[NMEA_field+1];
+                    gps_time[3] = sentenceRawBuf[NMEA_field+2];  // skip over the :
+                    gps_time[4] = sentenceRawBuf[NMEA_field+3];
+                    gps_time[6] = sentenceRawBuf[NMEA_field+4];
+                    gps_time[7] = sentenceRawBuf[NMEA_field+5];
+                }
+                else if (','==c) {
+                    NMEAState=NMEA_latitude;
+                    NMEA_field=NMEA_index;
+                }
+                NMEA_index++;
+            } else {
+                NMEAState=NMEA_search;
+            }
+            break;
+        case NMEA_lat: // capture latitude
+            if (((c>='0') && (c<=9)) || (','==c) || ('.'==c)) {
+                if ('.'==c) { 
+                    sentenceRawBuf[NMEA_index]=='\0';
+                    gps_time = atoi(sentenceRawBuf[NMEA_field]);
+                    sentenceRawBuf[NMEA_index]=='.';
+                }
+                else if (','==c) {
+                    NMEAState=NMEA_latitude;
+                    NMEA_field=NMEA_index;
+                }
+                NMEA_index++;
+            } else {
+                NMEAState=NMEA_search;
+            }
+            break;
+        default:
+            break;
+    }
+}
+#endif
 
 REGISTER_CC_V5(COMMAND_CLASS_GEOGRAPHIC_LOCATION, GEOGRAPHIC_LOCATION_VERSION_V2, CC_GeographicLoc_handler, NULL, NULL, lifeline_reporting, 0, init, reset);
 // No BASIC CC mapping so those are NULL. zero is reserved field
