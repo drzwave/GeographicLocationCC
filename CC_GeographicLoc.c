@@ -1,6 +1,5 @@
 /**
  * @file GeographicLocCC.c 
-
  * @brief Z-Wave Geographic Location V2 Command Class implementation for End Devices
  * See the ReadMe.md for more details.
  * @author Eric Ryherd drzwave@silabs.com
@@ -65,7 +64,7 @@ static received_frame_status_t CC_GeographicLoc_handler(
             output->frame->ZW_GeographicLocationReportV2Frame.cmd      = GEOGRAPHIC_LOCATION_REPORT_V2;
             output->frame->ZW_GeographicLocationReportV2Frame.longitude = longitude;
             output->frame->ZW_GeographicLocationReportV2Frame.latitude  = latitude;
-            output->frame->ZW_GeographicLocationReportV2Frame.altitude  = altitude;
+            output->frame->ZW_GeographicLocationReportV2Frame.altitude  = altitude; // TODO altitude is a 24 bit value but this is 32
             output->frame->ZW_GeographicLocationReportV2Frame.status    = ((0<<7)|(gps_quality<<5)|(GEO_READ_ONLY<<3)|(alt_valid<<2)|(lat_valid<<1)|(long_valid));
             output->length = sizeof(ZW_GEOGRAPHIC_LOCATION_REPORT_V2_FRAME); // triggers the send
             break;
@@ -110,7 +109,7 @@ typedef enum {  // NMEA state machine states
     NMEA_error
 } NMEA_state_e;
 
-static uint8_t NMEAState = NMEA_search;
+static uint8_t NMEAState = NMEA_search; // state machine that assembles the Sentance from a UART
 
 /* @brief Add the character C to the "sentence" buffer as each byte arrives via a UART
  * returns true when a complete buffer has been filled otherwise false
@@ -152,7 +151,7 @@ bool NMEA_build(char c) {
     return(rtn);
 }
 
-/* @brief convert hex string of up to 8 hex chars to an integer. Zero if non-hex chars are found.
+/* @brief convert hex string of up to 8 chars to an integer. Zero if non-hex chars are found.
  */
 uint32_t hextoi(char * ptr) {
     uint32_t rtn = 0;
@@ -195,6 +194,40 @@ bool NMEA_checksum(void) {
     else DPRINT(" BAD!!!\n");
     if (check == sum) return(true);
     else return(false);
+}
+
+/* @brief search thru the NMEA sentence and return the 32 bit latitude a signed fixed point decimal degress with 23 bits of fraction
+ * Returns 0 if errors
+ */
+int NMEA_getLatitude(void) {
+    int i;
+    int fieldNum = 0;
+    int rtn = 0;
+    int k,m,n;
+    char tmp[10];
+    for (i=0;i<SENTENCE_BUF_LENGTH;i++) { // search for the latitude field which is the 2nd one
+        if (','==SentenceBufRaw[i]) {
+            fieldNum++;
+            if (fieldNum==2) {
+                i++;
+                break;
+            }
+            if (SENTENCE_BUF_LENGTH==i) return(0);
+            tmp[0]=SentenceBufRaw[i++]; 
+            tmp[1]=SentenceBufRaw[i++]; 
+            tmp[2]='\0';
+            rtn = atoi(tmp)<<23; // decimal degrees
+            tmp[0]=SentenceBufRaw[i++]; 
+            tmp[1]=SentenceBufRaw[i++]; 
+            k = atoi(tmp)<<23; // decimal minutes
+            if ('.'!=SentenceBufRaw[i++]) return(0);
+            for (m=i; ((m<SENTENCE_BUG_LENGTH) && (','!=SentenceBufRaw[i+m]));m++) {
+               tmp[m] = SentenceBufRaw[i+m]; 
+            }
+            tmp[m]='\0';
+            n = atoi(tmp)*(10*m);
+        }
+    }
 }
 
 #if 0

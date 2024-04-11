@@ -29,6 +29,7 @@ Typically the accuracy of most GPS receivers is at best a few meters, the centim
     - Check that it builds - ideally download and join a network and send On/Offs
 2. Copy (or softlink) the .c and .h files of this repo into the project 
     - Do not copy the CC\_GeographicLoc1.h - the contents of this file must be pasted into ZW\_classcmd.h in the next step
+    - Softlinks can be created using a bash shell started with administrator rights and then use the "ln -s <target>" command
 3. Edit the file: gecko\_sdk\_4.4.1/protocol/z-wave/PAL/inc/ZW\_classcmd.h
     - SSv5 will ask if you want to make a copy - click on "Make a Copy"
     - Go to line 691 and copy the contents of CC\_GeographicLoc1.h into the ZW\_cmdclass.h file
@@ -53,6 +54,8 @@ Data is typically transmitted over a UART at 4800 baud once per second.
 Often the data and formats can be configured.
 Some GPS recivers use I2C for serial data transfer. The data is the same but the bus master must poll the GPS receiver to get the data.
 
+<figure class="wp-block-table"><table><tbody><tr><td class="has-text-align-center" data-align="center">7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Command Class = COMMAND_CLASS_GEOGRAPHIC_LOCATION (0x8C)</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Command = GEOGRAPHIC_LOCATION_REPORT (0x03)</td></tr><tr><td class="has-text-align-center" data-align="center">Lo Sign</td><td colspan="7">Longitude Integer[8:1]</td></tr><tr><td class="has-text-align-center" data-align="center">Lo[0]</td><td colspan="7">Long Fraction[22:16]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Longitude Fraction[15:8]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Longitude Fraction[7:0]</td></tr><tr><td class="has-text-align-center" data-align="center">La Sign</td><td colspan="7">Latitude Integer[8:1]</td></tr><tr><td class="has-text-align-center" data-align="center">La[0]</td><td colspan="7">Lat Fraction[22:16]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Latitude Fraction[15:8]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Latitude Fraction[7:0]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Altitude[23:16] MSB in cm</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Altitude[15:8]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Altitude[7:0] LSB</td></tr><tr><td class="has-text-align-center" data-align="center">RSV</td><td colspan="3">Qual</td><td>RO</td><td>Al Valid</td><td>La Valid</td><td>Lo Valid</td></tr></tbody></table><figcaption class="wp-element-caption">REPORT is the same as SET with the additional STATUS byte</figcaption></figure>
+
 # Reference Documents
 
 - [HowTo Implement a New Z-Wave Command Class](https://docs.silabs.com/z-wave/7.21.1/zwave-api/md-content-how-to-implement-a-new-command-class) - docs.silabs.com
@@ -67,11 +70,34 @@ Some GPS recivers use I2C for serial data transfer. The data is the same but the
 - Get data out of the GPS
 - Convert data to GeoLocCC format
 - Code Python script to talk to a serialAPI to get GeoCC every 30s and place it in a .csv file which can then be plotted on a map
+- Get I2C GPS receivers to work
+- Code the store format
 
 # Journal 
 
 This section is temporary and will be deleted once its working. Just a place for me to keep some notes.
 
+
+<b>2024-03-29</b> - Computing the GeoLoc values from the GPS data
+
+- converting a Latitude to GeoLocCC:
+- 4851.54168,N = 48.859028 in decimal degrees = 409859233 in 8.23 fixed point =  0x18 6D F4 A1
+- 4851.54168,N = decimal integer is 48. Just shift that up 23 bits. 0x1800\_0000
+- 4851.54168,N = converting minutes into a decimal fraction is just divide by 60: 51.54168/60 = 0.859028
+- 4851.54168,N = Shift integer up by 23 bits 51<<23 = 427819008 (0x19800000).
+- 4851.54168,N = Add zeros to the fraction 7 digits then add that to the integer minutes 5416800 (0x52a760) + integer = 433235808 (0x19D2A760)
+- 4851.54168,N = Divide by 60 = 7229596 (0x6e2d74)
+- 4851.54168,N = 
+- 4859.99999,N = 48.999999 in decimal degrees
+- 4800.00000,N = 48.000000 in decimal degrees
+- To convert the hex back into a floating point value in python:
+- 0x184c4b3f = divide by 2\*\*23?
+- 
+
+
+<b>2024-04-11</b> - support the XA1110 module via QWIIC
+
+- Added the files for the SparkFun XA1110 GPS module which is connected to ZRAD
 
 <b>2024-03-28</b> - Calculating the CC values from the GPS data
 
