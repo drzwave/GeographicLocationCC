@@ -9,7 +9,6 @@
  * Then the Geographic Location Command Class code can then extract the coordinates from the NMEA string and report them via Z-Wave.
  *
  * Setup to add support to the Z-Wave SwitchOnOff sample app GSDK 4.4.1
- * #include the xa1110.h file into app.c
  * Add the following to the beginning of ApplicationTask after app_hw_init().
 m_AppTaskHandle = xTaskGetCurrentTaskHandle();
 AppTimerSetReceiverTask(m_AppTaskHandle);
@@ -17,6 +16,7 @@ AppTimerRegister(&I2CTimer, false, ZCB_I2CTimerCallBack);
 TimerStart( &I2CTimer, XA1110_POLLING_INTERVAL);
 
  * add the following lines near the top of app.c 
+#include <AppTimer.h>            // GeoLocCC
 #include "xa1110.h"
 static SSwTimer I2CTimer;
 static TaskHandle_t m_AppTaskHandle;
@@ -27,6 +27,8 @@ Add the following lines to ApplicationInit just before the user task creation
 add the following line to the EVENT_APP_SWITCH_ON_OFF enum
   EVENT_APP_I2CTIMER_TIMEOUT,
 
+If the XA1110 GPS module is connected and debugprint is enabled there should be NMEA sentences printed out the debug port.
+Note that it may take a minute or two for the GPS to lock onto satelites or move to a more open location.
  */
 
 
@@ -48,7 +50,15 @@ typedef enum {
 #include <DebugPrint.h>
 #endif
 
-static uint8_t NMEA_sentence[NMEA_BUF_SIZE]; // Build the GPS NMEA sentence with the string needed - "$G.NSS..."
+static uint8_t * NMEA_sentence; // Build the GPS NMEA sentence with the string needed - "$G.GGA..."
+static bool NMEA_valid = false;
+
+void NMEA_Init(uint8_t * ptr) { // Initialize the pointer to the NMEA buffer
+    NMEA_sentence=ptr;
+}
+bool is_NMEA_Valid(void) { // Is the NEMA sentence in the buffer valid?
+    return(NMEA_valid);
+}
 
 void Fetch_GPS(void) { // fetch the GPS NMEA sentence from the XA1110 GPS module over I2C and store it in the NMEA_sentence buffer
     static I2C_TransferSeq_TypeDef i2c_dat;
@@ -86,6 +96,7 @@ void Fetch_GPS(void) { // fetch the GPS NMEA sentence from the XA1110 GPS module
                 NMEA_index=0;
                 while ((i2c_read<I2C_BUF_SIZE) && (I2C_IDLE==i2c_state) && !i2c_done) {
                     if ('$'==i2c_rxBuf[i2c_read]) {
+                        NMEA_valid=false; // about to overwrite the buffer so mark it invalid
                         i2c_state=I2C_GPGGA;
                         NMEA_sentence[NMEA_index++] = i2c_rxBuf[i2c_read];
                     } else if (0x0a==i2c_rxBuf[i2c_read]) {
@@ -146,7 +157,9 @@ void Fetch_GPS(void) { // fetch the GPS NMEA sentence from the XA1110 GPS module
                     NMEA_sentence[NMEA_index++] = i2c_rxBuf[i2c_read++];
                     NMEA_sentence[NMEA_index]=0; // terminate the string
                     i2c_done=true; // all done
+                    NMEA_valid=true;
                     DPRINTF("NMEA=%s",NMEA_sentence);
+                    zaf_event_distributor_enqueue_app_event(EVENT_APP_NMEA_READY); // Tell the application there is data in the buffer
                 } // TODO - handle the case where the 2 checksum bytes are in the next buffer
                 i2c_state=I2C_IDLE;
                 break;

@@ -2,50 +2,64 @@
 
 Z-Wave Geographic Location CC V2 adds the ability to report or store the
 GPS coordinates of a device to within centimeter resolution.
-Typically the accuracy of most GPS receivers is at best a few meters, the centimeter resolution is more than enough.
+Typically the accuracy of most GPS receivers is at best a few meters. 
+Expensive GPS receivers can achieve centimeter resolution but those would typically not be used for IoT.
 
 # Getting Started
 
-- How to use this Repo???
-- How do you install this into a project?
-    - Just copy the files into the project directory and they are in?
+Clone this repository either directly into a project or into an adjacent folder and use softlinks for the specific files needed.
+Then follow the step-by-step instructions below based on the GPS receiver interface being used: UART or I2C.
 
-# Setup
+# GPS Receiver Hardware Interfaces
 
-- Adding a GPS receiver to a Silabs devkit is realtively easy using a standard QWIIC connector
-- Most GPS receivers use a simple UART to send data once/second to an MCU
-- But the UARTs are not standardized and thus require custom wiring making them less reliable
-- [Sparkfun](https://www.sparkfun.com/) sells several GPS receivers with QWIIC connectors
-    - [XA1110](https://www.sparkfun.com/products/14414) - GPS Breakout
-- If using the UART interface:
-    - WSTK Pin 1=VMCU=3.3V
-    - WSTK Pin 3=GND
-    - WSTK Pin 6=P1=ZG23 PC1=RX
-    - WSTK Pin 8=P3=ZG23 PC2=TX
+- GPS receivers typically use either a UART or I2C:
+- UART:
+    - UARTs do not have standardized connectors and require custom wiring
+    - Using a WSTK ProKit with a Z-Wave radio board would require wiring to the header next to the slide switch 
+        - WSTK Pin 1=VMCU=3.3V
+        - WSTK Pin 3=GND
+        - WSTK Pin 6=P1=ZG23 PC1=RX
+        - WSTK Pin 8=P3=ZG23 PC2=TX
+    - Using a DK2603 (Thunderboard) devkit would wire a similar set of pins to the holes along the edge of the board
+- I2C:
+    - The DK2603 DevKit and the Z-Wave Alliance Reference Application Device (ZRAD) both have QWIIC connectors on them
+    - [Sparkfun](https://www.sparkfun.com/) sells several GPS receivers with QWIIC connectors
+        - [XA1110](https://www.sparkfun.com/products/14414) - GPS Breakout
 
-# Step-by-Step Installation into the SwitchOnOff sample project using GSDK 4.4.1
+The source code provided in this repo has code specific to each interface.
+The first thing to do is to choose which interface you will use and then uncomment one of the 2 defines in CC\_GeographicLoc.h to choose which interface will be used.
+
+# Step-by-Step Installation into the SwitchOnOff sample project using GSDK 4.4.2
 
 1. Create the sample app, set the RF Region, enable debug printing
     - Check that it builds - ideally download and join a network and send On/Offs
+    - Recommend also installing Z-Wave Debug Print and uncommenting #define DEBUGPRINT in app.c
 2. Copy (or softlink) the .c and .h files of this repo into the project 
     - Do not copy the CC\_GeographicLoc1.h - the contents of this file must be pasted into ZW\_classcmd.h in the next step
     - Softlinks can be created using a bash shell started with administrator rights and then use the "ln -s <target>" command
-3. Edit the file: gecko\_sdk\_4.4.1/protocol/z-wave/PAL/inc/ZW\_classcmd.h
+3. Since Geographic Location CC V2 has not been released yet, SDK ZW_classcmd.h file must be customized to add support for GeoLocCCv2:
+3. Edit the file: gecko\_sdk\_4.4.x/protocol/z-wave/PAL/inc/ZW\_classcmd.h
     - SSv5 will ask if you want to make a copy - click on "Make a Copy"
     - Go to line 691 and copy the contents of CC\_GeographicLoc1.h into the ZW\_cmdclass.h file
         - Must be copied in due to the backslashes - cannot #include
-        - Just after Geographic Location V1
-    - Go to line 6408 and enter: #include "CC\_GeographicLoc2.h"
+        - Just after Geographic Location V1 - search for "geograph" to find the correct line
+    - Go to line 6411 and enter: #include "CC\_GeographicLoc2.h"
         - just after Geographic Location V1
-    - Go to line 22729 and enter: #include "CC\_GeographicLoc3.h" 
+    - Go to line 22732 and enter: #include "CC\_GeographicLoc3.h" 
         - just after Geographic Location V1 Set frame
     - optionally move the file to the top level with the other project files so it is easy to see what has changed
     - Once GeoLoc V2 is released into the SDK this step won't be required
-4. Edit events.h
+
+- UART Interface:
+- MORE TO COME HERE - TBD - this section needs to be rewritten...
+- Edit events.h
     - add "EVENT_EUSART1_CHARACTER_RECEIVED," to the end of the enum EVENT_APP_SWITCH_ON_OFF
     - the project should build without errors at this point
-5. Replace the app.c in the sample project with the one from the repo
+- Replace the app.c in the sample project with the one from the repo
 
+- I2C Interface:
+    - Follow the instructions in the ZRAD repo to install I2CSPM
+    - Follow the instructions in XA1110.c to install the code into app.c 
 
 # Technical Information
 
@@ -77,6 +91,15 @@ Some GPS recivers use I2C for serial data transfer. The data is the same but the
 
 This section is temporary and will be deleted once its working. Just a place for me to keep some notes.
 
+
+<b>2024-04-15</b> - I2C debug
+The challenge is how and when to compute the Lon/Lat from the I2C bus data.
+The XA1110 code has completed a sentence. It could generate an event with a pointer to the data and then use a 2nd buffer to start filling that one in.
+The event is then handled later by app.c and converted into Lon/Lat/Alt values when requested or do it all the time?
+Another option is to just wait until a GET comes in and then fetch it? That would probably take too long. Plus might have to wait for the GPS to send the next frame which might be 1-2 seconds later.
+That's definitely too long. So have to keep at least getting the sentence every second.
+Might as well also compute the Lon/Lat values. That should take very little time compared to the I2C bus.
+I can add a Mutex so who owns the buffer is kept to one or the other.
 
 <b>2024-03-29</b> - Computing the GeoLoc values from the GPS data
 

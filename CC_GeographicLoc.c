@@ -13,19 +13,13 @@
 // add code for storing in NVM
 
 #include "CC_GeographicLoc.h"
+#ifdef GEOLOCCC_INTERFACE_UART
 #include "UART_DRZ.h" // GPS receiver is on EUSART1
+#endif
 #include <ZW_TransportEndpoint.h>
 
-// Comment this out if NOT connected to a GPS receiver and only stores the location via SET.
-#define GPS_ENABLED
 
-#ifdef GPS_ENABLED
- #define GEO_READ_ONLY 1
-#else
- #define GEO_READ_ONLY 0
-#endif
-
-// uncomment to get some printouts
+// uncomment to enable debugging info
 #define DEBUGPRINT
 #include "DebugPrint.h"
 #include <string.h>
@@ -42,12 +36,12 @@ static uint8_t gps_quality=0;
 //static uint8_t gps_time[]="HH:MM:SS";
 //static uint8_t gps_satelites=0;
 
-// Max length is 255
+// Max length is 255, 80 bytes is more than enough
 #define SENTENCE_BUF_LENGTH 80
 static char SentenceBufRaw[SENTENCE_BUF_LENGTH]; // holds the GPS sentence for later parsing
-static uint8_t NMEA_index; // index pointer into the buffer
+//static uint8_t NMEA_index; // index pointer into the buffer
 /*
- * @brief handler for Geograpahic Location Command class when a command is received via Z-Wave
+ * @brief handler for Geographic Location Command class when a command is received via Z-Wave
  */
 static received_frame_status_t CC_GeographicLoc_handler(
     cc_handler_input_t * input,
@@ -94,6 +88,7 @@ static uint8_t lifeline_reporting(ccc_pair_t * p_ccc_pair)
 static void init(void)
 {
   // called by ZAF_Init() - Anything that needs initialization on reset - pick up values out of NVM or init the UART
+  NMEA_Init(SentenceBufRaw); // initialize the pointer to the NMEA buffer which the GPS interface will fill in
 }
 
 static void reset(void)
@@ -101,6 +96,7 @@ static void reset(void)
   // called when a factory reset is performed - reset the NVM?
 }
 
+#ifdef GEOLOCCC_INTERFACE_UART
 typedef enum {  // NMEA state machine states
     NMEA_search,
     NMEA_fetch,
@@ -150,6 +146,7 @@ bool NMEA_build(char c) {
     }
     return(rtn);
 }
+#endif
 
 /* @brief convert hex string of up to 8 chars to an integer. Zero if non-hex chars are found.
  */
@@ -171,10 +168,12 @@ uint32_t hextoi(char * ptr) {
     return(rtn);
 }
 
-/* @brief return TRUE if the sentence starts with $GPGGA
+/* @brief return TRUE if the sentence starts with $GPGGA or $GNGGA
  */
 bool NMEA_GPGGA(void) { 
-    if (0==strncmp("$GPGGA",&SentenceBufRaw[0],6U)) return(true);
+    if ((0==strncmp("$GPGGA",&SentenceBufRaw[0],6U)) ||
+        (0==strncmp("$GNGGA",&SentenceBufRaw[0],6U))
+       ) return(true);
     else return(false);
 }
 
@@ -221,7 +220,7 @@ int NMEA_getLatitude(void) {
             tmp[1]=SentenceBufRaw[i++]; 
             k = atoi(tmp)<<23; // decimal minutes
             if ('.'!=SentenceBufRaw[i++]) return(0);
-            for (m=i; ((m<SENTENCE_BUG_LENGTH) && (','!=SentenceBufRaw[i+m]));m++) {
+            for (m=i; ((m<SENTENCE_BUF_LENGTH) && (','!=SentenceBufRaw[i+m]));m++) {
                tmp[m] = SentenceBufRaw[i+m]; 
             }
             tmp[m]='\0';
@@ -229,51 +228,6 @@ int NMEA_getLatitude(void) {
         }
     }
 }
-
-#if 0
-/* @brief check the checksum of the NMEA sentence and return TRUE if OK.
- */
-bool NMEA_check(char * ptr) {
-    bool rtn = false;
-            if (((c>='0') && (c<=9)) || (','==c) || ('.'==c)) {
-                if ('.'==c) { // ignore the fraction of a second
-                    gps_time[0] = sentenceRawBuf[NMEA_field]; // gps_time="HH:MM:SS"
-                    gps_time[1] = sentenceRawBuf[NMEA_field+1];
-                    gps_time[3] = sentenceRawBuf[NMEA_field+2];  // skip over the :
-                    gps_time[4] = sentenceRawBuf[NMEA_field+3];
-                    gps_time[6] = sentenceRawBuf[NMEA_field+4];
-                    gps_time[7] = sentenceRawBuf[NMEA_field+5];
-                }
-                else if (','==c) {
-                    NMEAState=NMEA_latitude;
-                    NMEA_field=NMEA_index;
-                }
-                NMEA_index++;
-            } else {
-                NMEAState=NMEA_search;
-            }
-            break;
-        case NMEA_lat: // capture latitude
-            if (((c>='0') && (c<=9)) || (','==c) || ('.'==c)) {
-                if ('.'==c) { 
-                    sentenceRawBuf[NMEA_index]=='\0';
-                    gps_time = atoi(sentenceRawBuf[NMEA_field]);
-                    sentenceRawBuf[NMEA_index]=='.';
-                }
-                else if (','==c) {
-                    NMEAState=NMEA_latitude;
-                    NMEA_field=NMEA_index;
-                }
-                NMEA_index++;
-            } else {
-                NMEAState=NMEA_search;
-            }
-            break;
-        default:
-            break;
-    }
-}
-#endif
 
 REGISTER_CC_V5(COMMAND_CLASS_GEOGRAPHIC_LOCATION, GEOGRAPHIC_LOCATION_VERSION_V2, CC_GeographicLoc_handler, NULL, NULL, lifeline_reporting, 0, init, reset);
 // No BASIC CC mapping so those are NULL. zero is reserved field
