@@ -17,7 +17,7 @@
 #include "UART_DRZ.h" // GPS receiver is on EUSART1
 #endif
 #include <ZW_TransportEndpoint.h>
-
+#include <ZW_application_transport_interface.h>
 
 // uncomment to enable debugging info
 #define DEBUGPRINT
@@ -47,10 +47,13 @@ static received_frame_status_t CC_GeographicLoc_handler(
     cc_handler_input_t * input,
     cc_handler_output_t * output)
 {
+    DPRINT("GeoLocCC\n");
     switch (input->frame->ZW_Common.cmd)
     {
         case GEOGRAPHIC_LOCATION_GET_V2:
+            DPRINT("GeoLocCC GET\n");
             if (true == Check_not_legal_response_job(input->rx_options)) {
+            DPRINT("GeoLocCC FAILED\n");
                 return RECEIVED_FRAME_STATUS_FAIL;
             }
             // send the report
@@ -69,7 +72,7 @@ static received_frame_status_t CC_GeographicLoc_handler(
             return RECEIVED_FRAME_STATUS_NO_SUPPORT;
             break;
     }
-  return RECEIVED_FRAME_STATUS_SUCCESS;
+    return RECEIVED_FRAME_STATUS_SUCCESS;
 }
 
 #ifdef GPS_ENABLED
@@ -227,6 +230,16 @@ int NMEA_getLatitude(void) {
             n = atoi(tmp)*(10*m);
         }
     }
+}
+
+/* @brief Often this needs to be in app.c but this version just processes the geolocCC frames
+ * Called when a receive packet of any type is received - can be used to hack in any command class that isn't officially supported
+ */
+void zaf_event_distributor_app_zw_rx(__attribute__((unused)) SZwaveReceivePackage *RxPackage)
+{
+    DPRINTF("Rx cmdClass=%x cmd=%x\n",
+            RxPackage->uReceiveParams.Rx.Payload.rxBuffer.ZW_BasicGetFrame.cmdClass,
+            RxPackage->uReceiveParams.Rx.Payload.rxBuffer.ZW_BasicGetFrame.cmd);
 }
 
 REGISTER_CC_V5(COMMAND_CLASS_GEOGRAPHIC_LOCATION, GEOGRAPHIC_LOCATION_VERSION_V2, CC_GeographicLoc_handler, NULL, NULL, lifeline_reporting, 0, init, reset);

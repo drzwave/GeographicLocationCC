@@ -37,7 +37,7 @@ The first thing to do is to choose which interface you will use and then uncomme
 2. Copy (or softlink) the .c and .h files of this repo into the project 
     - Do not copy the CC\_GeographicLoc1.h - the contents of this file must be pasted into ZW\_classcmd.h in the next step
     - Softlinks can be created using a bash shell started with administrator rights and then use the "ln -s <target>" command
-3. Since Geographic Location CC V2 has not been released yet, SDK ZW_classcmd.h file must be customized to add support for GeoLocCCv2:
+3. Since Geographic Location CC V2 has not been released yet, SDK ZW\_classcmd.h file must be customized to add support for GeoLocCCv2:
 3. Edit the file: gecko\_sdk\_4.4.x/protocol/z-wave/PAL/inc/ZW\_classcmd.h
     - SSv5 will ask if you want to make a copy - click on "Make a Copy"
     - Go to line 691 and copy the contents of CC\_GeographicLoc1.h into the ZW\_cmdclass.h file
@@ -51,11 +51,11 @@ The first thing to do is to choose which interface you will use and then uncomme
     - Once GeoLoc V2 is released into the SDK this step won't be required
 
 - UART Interface:
-- MORE TO COME HERE - TBD - this section needs to be rewritten...
-- Edit events.h
-    - add "EVENT_EUSART1_CHARACTER_RECEIVED," to the end of the enum EVENT_APP_SWITCH_ON_OFF
-    - the project should build without errors at this point
-- Replace the app.c in the sample project with the one from the repo
+    - MORE TO COME HERE - TBD - this section needs to be rewritten...
+    - Edit events.h
+        - add "EVENT_EUSART1_CHARACTER_RECEIVED," to the end of the enum EVENT_APP_SWITCH_ON_OFF
+        - the project should build without errors at this point
+    - Replace the app.c in the sample project with the one from the repo
 
 - I2C Interface:
     - Follow the instructions in the ZRAD repo to install I2CSPM
@@ -72,7 +72,8 @@ Some GPS recivers use I2C for serial data transfer. The data is the same but the
 
 # Reference Documents
 
-- [HowTo Implement a New Z-Wave Command Class](https://docs.silabs.com/z-wave/7.21.1/zwave-api/md-content-how-to-implement-a-new-command-class) - docs.silabs.com
+- [How To Implement a New Command Class](https://docs.silabs.com/z-wave/7.21.2/zwave-api/md-content-how-to-implement-a-new-command-class) - docs.silabs.com
+    - Switch to the latest version by clicking on "Version History" or google it
 - [NMEA GPS](https://www.gpsworld.com/what-exactly-is-gps-nmea-data/) Sentence definition
 - 
 - 
