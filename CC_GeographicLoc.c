@@ -232,6 +232,7 @@ int NMEA_getLatitude(void) {
     }
 }
 
+#if 0
 /* @brief Often this needs to be in app.c but this version just processes the geolocCC frames
  * Called when a receive packet of any type is received - can be used to hack in any command class that isn't officially supported
  */
@@ -241,6 +242,7 @@ void zaf_event_distributor_app_zw_rx(__attribute__((unused)) SZwaveReceivePackag
             RxPackage->uReceiveParams.Rx.Payload.rxBuffer.ZW_BasicGetFrame.cmdClass,
             RxPackage->uReceiveParams.Rx.Payload.rxBuffer.ZW_BasicGetFrame.cmd);
 }
+#endif
 
 REGISTER_CC_V5(COMMAND_CLASS_GEOGRAPHIC_LOCATION, GEOGRAPHIC_LOCATION_VERSION_V2, CC_GeographicLoc_handler, NULL, NULL, lifeline_reporting, 0, init, reset);
 // No BASIC CC mapping so those are NULL. zero is reserved field

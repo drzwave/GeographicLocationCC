@@ -21,11 +21,12 @@ TimerStart( &I2CTimer, XA1110_POLLING_INTERVAL);
 static SSwTimer I2CTimer;
 static TaskHandle_t m_AppTaskHandle;
 
-Add the following lines to ApplicationInit just before the user task creation
+Add the following line to ApplicationInit just before the user task creation
   AppTimerInit(EAPPLICATIONEVENT_TIMER,NULL); // XA1110 support
 
-add the following line to the EVENT_APP_SWITCH_ON_OFF enum
+add the following lines to the EVENT_APP_SWITCH_ON_OFF enum in events.h
   EVENT_APP_I2CTIMER_TIMEOUT,
+  EVENT_APP_NMEA_READY,
 
 If the XA1110 GPS module is connected and debugprint is enabled there should be NMEA sentences printed out the debug port.
 Note that it may take a minute or two for the GPS to lock onto satelites or move to a more open location.
