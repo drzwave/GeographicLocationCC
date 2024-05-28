@@ -25,8 +25,11 @@
 #endif
 
 bool NMEA_build(char c); // add a character to the NEMA Sentence buffer, return TRUE if complete sentence is in buffer
-bool NMEA_GPGGA(void) ; // TRUE if Sentence starts with $GPGGA or $GNGGA
 bool NMEA_checksum(void) ; // TRUE if the Sentence Checksum is good
+void NMEA_parse(void);
+int NMEA_getLongitude(void);
+int NMEA_getLatitude(void);
+int NMEA_getaltitude(void);
 
 void NMEA_Init(uint8_t * ptr); // Initialize the pointer to the NMEA buffer in the specific hardware interface
 

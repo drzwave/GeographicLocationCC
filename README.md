@@ -2,8 +2,15 @@
 
 Z-Wave Geographic Location CC V2 adds the ability to report or store the
 GPS coordinates of a device to within centimeter resolution.
+Common use-cases for Geographic Location CC are sensor networks using Z-Wave Long Range (ZWLR). 
+ZWLR has over 2 miles of RF range which can result in an area of 16 square miles. Thus, a reliable method of locating sensors in this large area is needed for a variety of applications. 
+
 Typically the accuracy of most GPS receivers is at best a few meters. 
 Expensive GPS receivers can achieve centimeter resolution but those would typically not be used for IoT.
+GeoLocCC is handy when performing RF Range testing as the actual location of the device can be reported if a GPS recevier is connected.
+Heat maps can be generated showing exactly where the DUT is on a map and the signal quality.
+Typical applications use a phone app to store the GPS coordinates to save on the cost of the GPS receiver connected to an IoT device.
+The GPS coordinates can be recorded when the device is included into the network or at some point during the commissioning process once the final location has been established.
 
 # Getting Started
 
@@ -61,6 +68,10 @@ The first thing to do is to choose which interface you will use and then uncomme
     - Follow the instructions in the ZRAD repo to install I2CSPM
     - Follow the instructions in XA1110.c to install the code into app.c 
 
+# Adding Geographic Location CC V2 without hardware
+
+- add instructions here...
+
 # Technical Information
 
 GPS data from common GPS receivers provides longitude and latitude data in the form of a "NMEA Sentence".
@@ -68,17 +79,17 @@ Data is typically transmitted over a UART at 4800 baud once per second.
 Often the data and formats can be configured.
 Some GPS recivers use I2C for serial data transfer. The data is the same but the bus master must poll the GPS receiver to get the data.
 
-<figure class="wp-block-table"><table><tbody><tr><td class="has-text-align-center" data-align="center">7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Command Class = COMMAND_CLASS_GEOGRAPHIC_LOCATION (0x8C)</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Command = GEOGRAPHIC_LOCATION_REPORT (0x03)</td></tr><tr><td class="has-text-align-center" data-align="center">Lo Sign</td><td colspan="7">Longitude Integer[8:1]</td></tr><tr><td class="has-text-align-center" data-align="center">Lo[0]</td><td colspan="7">Long Fraction[22:16]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Longitude Fraction[15:8]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Longitude Fraction[7:0]</td></tr><tr><td class="has-text-align-center" data-align="center">La Sign</td><td colspan="7">Latitude Integer[8:1]</td></tr><tr><td class="has-text-align-center" data-align="center">La[0]</td><td colspan="7">Lat Fraction[22:16]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Latitude Fraction[15:8]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Latitude Fraction[7:0]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Altitude[23:16] MSB in cm</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Altitude[15:8]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Altitude[7:0] LSB</td></tr><tr><td class="has-text-align-center" data-align="center">RSV</td><td colspan="3">Qual</td><td>RO</td><td>Al Valid</td><td>La Valid</td><td>Lo Valid</td></tr></tbody></table><figcaption class="wp-element-caption">REPORT is the same as SET with the additional STATUS byte</figcaption></figure>
+<figure class="wp-block-table"><table><tbody><tr><td class="has-text-align-center" data-align="center">7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Command Class = COMMAND_CLASS_GEOGRAPHIC_LOCATION (0x8C)</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Command = GEOGRAPHIC_LOCATION_REPORT (0x03)</td></tr><tr><td class="has-text-align-center" data-align="center">Lo Sign</td><td colspan="7">Longitude Integer[8:1]</td></tr><tr><td class="has-text-align-center" data-align="center">Lo[0]</td><td colspan="7">Long Fraction[22:16]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Longitude Fraction[15:8]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Longitude Fraction[7:0]</td></tr><tr><td class="has-text-align-center" data-align="center">La Sign</td><td colspan="7">Latitude Integer[8:1]</td></tr><tr><td class="has-text-align-center" data-align="center">La[0]</td><td colspan="7">Lat Fraction[22:16]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Latitude Fraction[15:8]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Latitude Fraction[7:0]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Altitude[23:16] MSB in cm - or make this 32 bits to match?</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Altitude[15:8]</td></tr><tr><td class="has-text-align-center" data-align="center" colspan="8">Altitude[7:0] LSB</td></tr><tr><td class="has-text-align-center" data-align="center">RSV</td><td colspan="3">Qual</td><td>RO</td><td>Al Valid</td><td>La Valid</td><td>Lo Valid</td></tr></tbody></table><figcaption class="wp-element-caption">REPORT is the same as SET with the additional STATUS byte</figcaption></figure>
 
 # Reference Documents
 
 - [How To Implement a New Command Class](https://docs.silabs.com/z-wave/7.21.2/zwave-api/md-content-how-to-implement-a-new-command-class) - docs.silabs.com
     - Switch to the latest version by clicking on "Version History" or google it
 - [NMEA GPS](https://www.gpsworld.com/what-exactly-is-gps-nmea-data/) Sentence definition
-- 
-- 
 
 # Status
+
+- Currently getting bad data from the SDK - is the stack overflowing? RxOpts has 299 in it which is invalid!
 
 - Install GeoLoc CC into a SwOnOff project
 - Connect a GPS receiver to a TBZ or DevKit
@@ -86,14 +97,20 @@ Some GPS recivers use I2C for serial data transfer. The data is the same but the
 - Convert data to GeoLocCC format
 - Code Python script to talk to a serialAPI to get GeoCC every 30s and place it in a .csv file which can then be plotted on a map
 - Get I2C GPS receivers to work
-- Code the store format
+- Code the read/write version which stores the coords in NVM instead of read-only via a GPS receiver
 
 # Journal 
 
 This section is temporary and will be deleted once its working. Just a place for me to keep some notes.
 
 
+<b>2024-05-10</b> - Trace debugging bad data from the SDK
+
+See the ZRAD tech documentation for details.
+
+
 <b>2024-04-15</b> - I2C debug
+
 The challenge is how and when to compute the Lon/Lat from the I2C bus data.
 The XA1110 code has completed a sentence. It could generate an event with a pointer to the data and then use a 2nd buffer to start filling that one in.
 The event is then handled later by app.c and converted into Lon/Lat/Alt values when requested or do it all the time?
