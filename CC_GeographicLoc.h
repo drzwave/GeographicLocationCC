@@ -30,6 +30,8 @@ void NMEA_parse(void);
 int NMEA_getLongitude(void);
 int NMEA_getLatitude(void);
 int NMEA_getaltitude(void);
+int32_t NMEA_getStatus(void);
+
 
 void NMEA_Init(uint8_t * ptr); // Initialize the pointer to the NMEA buffer in the specific hardware interface
 

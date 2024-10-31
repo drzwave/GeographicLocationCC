@@ -46,7 +46,7 @@ static int32_t altitude=0;
 static uint8_t alt_valid=0;
 static uint8_t long_valid=0;
 static uint8_t lat_valid=0;
-static uint8_t gps_quality=0;    // TODO - need to implement this!
+static uint8_t gps_quality=0;
 //static uint8_t gps_time[]="HH:MM:SS";
 //static uint8_t gps_satelites=0;
 
@@ -76,18 +76,18 @@ static received_frame_status_t CC_GeographicLoc_handler(
             output->frame->ZW_GeographicLocationReportV2Frame.cmdClass = COMMAND_CLASS_GEOGRAPHIC_LOCATION_V2;
             output->frame->ZW_GeographicLocationReportV2Frame.cmd      = GEOGRAPHIC_LOCATION_REPORT_V2;
             CORE_ENTER_ATOMIC(); /* prevent values from changing while assembling the frame to avoid corruption */
-            output->frame->ZW_GeographicLocationReportV2Frame.longitude1 = (uint8_t)((longitude>>23)&0xFF);
+            output->frame->ZW_GeographicLocationReportV2Frame.longitude1 = (uint8_t)((longitude>>24)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.longitude2 = (uint8_t)((longitude>>16)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.longitude3 = (uint8_t)((longitude>>8)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.longitude4 = (uint8_t)((longitude>>0)&0xFF);
-            output->frame->ZW_GeographicLocationReportV2Frame.latitude1  = (uint8_t)((latitude>>23)&0xFF);
+            output->frame->ZW_GeographicLocationReportV2Frame.latitude1  = (uint8_t)((latitude>>24)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.latitude2  = (uint8_t)((latitude>>16)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.latitude3  = (uint8_t)((latitude>>8)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.latitude4  = (uint8_t)((latitude>>0)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.altitude1  = (uint8_t)((altitude>>16)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.altitude2  = (uint8_t)((altitude>>8)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.altitude3  = (uint8_t)((altitude>>0)&0xFF);
-            output->frame->ZW_GeographicLocationReportV2Frame.status    = ((0<<7)|(gps_quality<<5)|(GEO_READ_ONLY<<3)|(alt_valid<<2)|(lat_valid<<1)|(long_valid));
+            output->frame->ZW_GeographicLocationReportV2Frame.status    = ((gps_quality<<4)|(GEO_READ_ONLY<<3)|(alt_valid<<2)|(lat_valid<<1)|(long_valid));
             output->length = sizeof(ZW_GEOGRAPHIC_LOCATION_REPORT_V2_FRAME); /* triggers the send */
             CORE_EXIT_ATOMIC();
             break;
@@ -143,11 +143,21 @@ static uint8_t NMEAState = NMEA_search; // state machine that assembles the Sent
  * returns true when a complete buffer has been filled otherwise false
  * Typical NMEA sentence: 
  * $GPGGA,121017.00,4310.24176,N,07052.27544,W,1,08,1.10,00048,M,-032,M,,*52
- *       ,TIME     , Lat        , Long        , ,  ,    , Alt   ,       ,Checksum
+ *       ,TIME     , Latitude   , Longitude   ,Q,SAT,    , Alt   ,       ,Checksum
+ *          1           2      3      4      5 6  7    8    9  10  11 13
+ * Time = UTC time HH:MM:SS.ff (hours, minutes, seconds, fractions of a second)
+ * Q = GPS Quality - 0=Invalid, 1=GPS fix locked on
+ * SAT = Satellites in use (not how many are in view)
+ * Alt = Altitude in M above mean sea level (next field is the units for altitude M=meters)
+ * Checksum = XOR of all characters between the $ and *
+ * When it first power up and before getting satellites it sends:
+ * $GNGGA,145358.820,,,,,0,0,,,M,,M,,*
+ * When SAT=0, ignore the rest of the message
+ * 
  */
 bool NMEA_build(char c) {
     bool rtn = false;
-    //DPRINTF("%c",c);
+//    DPRINTF("%c",c);
     switch(NMEAState) {
         case NMEA_search: // search for the $
             if ('$'==c) {
@@ -181,7 +191,7 @@ bool NMEA_build(char c) {
         case NMEA_checksum2: // capture checksum 2nd digit
             NMEAState=NMEA_search;
             SentenceBufRaw[NMEA_index++]=c;
-        DPRINT("!");
+        DPRINT("\r\n!");
             rtn=true;
             break;
         default:
@@ -191,9 +201,21 @@ bool NMEA_build(char c) {
     return(rtn);
 }
 
+/* zero the valid bits when the gps is not locked
+ */
+static void gps_notLocked(void) {
+    gps_quality=0;
+    alt_valid=0;
+    lat_valid=0;
+    long_valid=0;
+    altitude=0;
+    longitude=0;
+    latitude=0;
+}
+
 /* @brief convert hex string of up to 8 chars to an integer. Zero if non-hex chars are found.
  */
-uint32_t hextoi(uint8_t * ptr) {
+static uint32_t hextoi(uint8_t * ptr) {
     uint32_t rtn = 0;
     for (uint8_t i=0; i<8; i++) {
         uint8_t c = ptr[i];
@@ -218,6 +240,7 @@ bool NMEA_checksum(void) {
     uint8_t sum=0;
     for (i=1; ((i<SENTENCE_BUF_LENGTH) && ('*'!=SentenceBufRaw[i])); i++) {
         sum ^= SentenceBufRaw[i];
+        DPRINTF("%c",SentenceBufRaw[i]); // print out the NMEA Sentence for debugging purposes
     }
     SentenceBufRaw[i+3]='\0'; // NULL the end of the string
     int check = hextoi(&SentenceBufRaw[i+1]);
@@ -230,15 +253,15 @@ bool NMEA_checksum(void) {
  */
 void NMEA_parse(void) {
     if (NMEA_checksum()) { // checksum is good so compute the coordinates
-        latitude  = NMEA_getLatitude();
-        if (0==latitude) lat_valid=0; 
-        else lat_valid=1;
-        longitude = NMEA_getLongitude();
-        if (0==longitude) long_valid=0; 
-        else long_valid=1;
-        altitude  = NMEA_getAltitude();
-        if (0==altitude) alt_valid=0; 
-        else alt_valid=1;
+        NMEA_getStatus(); // sets the status bits
+        DPRINTF("Sats=%d ",gps_quality);
+        if (gps_quality >=4) {  // need at least 4 sattelites to be locked on
+            latitude  = NMEA_getLatitude();
+            longitude = NMEA_getLongitude();
+            altitude  = NMEA_getAltitude();
+        } else {
+            gps_notLocked();
+        }
     }
 }
 
@@ -266,18 +289,19 @@ int NMEA_getLongitude(void) {
     tmp[1]=SentenceBufRaw[i++]; 
     tmp[2]=SentenceBufRaw[i++]; 
     tmp[3]='\0';
-    rtn = atoi(tmp)<<23; // decimal degrees
-    DPRINTF("long D=%s ",tmp);
+    rtn = atoi(tmp); // decimal degrees (0-180)
     for (k=0;((k+i)<SENTENCE_BUF_LENGTH) && (','!=SentenceBufRaw[k+i]);k++) {
         tmp[k]=SentenceBufRaw[k+i];     // copy to tmp buffer
     }
     tmp[k+1] = '\0';
-    DPRINTF("M=%s",tmp);
-    t = atof(tmp);
-    rtn = rtn + (int32_t)(t*(float)(1<<23)/60); // convert from minutes to degrees and shift up 23 bits
-    DPRINTF(" frac=%f hex=%X \r\n",t,rtn);
-    if ('W'==SentenceBufRaw[i+1]) rtn=0-rtn; // West=negative
-    if (0==rtn) rtn=1; // in the rare case when exactly 0, make it 1 as it is not an error
+    t = atof(tmp);  // note floating point!
+    t = rtn + (t/(float)60.0); // convert from minutes to degrees
+    if ('W'==SentenceBufRaw[k+i+1]) t=0-t; // West=negative
+    else if ('E'!=SentenceBufRaw[k+i+1]) DPRINTF("Err1=%c", SentenceBufRaw[k+i+1]);
+    //DPRINTF("LON=%f ",t);
+    rtn = t*(1<<23); // convert to a fixed point integer
+    if (0==rtn) rtn=1; // in the rare case when exactly 0, make it 1 as zero indicates the value is not valid
+    //DPRINTF("hex=%X\r\n",rtn);
     return(rtn);
 }
 
@@ -304,18 +328,19 @@ int NMEA_getLatitude(void) {
     tmp[0]=SentenceBufRaw[i++];     // first 2 digits are degrees
     tmp[1]=SentenceBufRaw[i++]; 
     tmp[2]='\0';
-    rtn = atoi(tmp)<<23; // decimal degrees
-    DPRINTF("lat D=%s",tmp);
+    rtn = atoi(tmp); // decimal degrees (0-90)
     for (k=0;((k+i)<SENTENCE_BUF_LENGTH) && (','!=SentenceBufRaw[k+i]);k++) {
         tmp[k]=SentenceBufRaw[k+i];     // copy to tmp buffer
     }
     tmp[k+1] = '\0';
-    DPRINTF("M=%s",tmp);
-    t = atof(tmp);
-    rtn = rtn + (int32_t)(t*(float)(1<<23)/60); // convert from minutes to degrees and shift up 23 bits
-    DPRINTF(" frac=%f hex=%X ",t,rtn);
-    if ('S'==SentenceBufRaw[i+1]) rtn=0-rtn; // South=negative
-    if (0==rtn) rtn=1; // in the rare case when exactly 0, make it 1 as it is not an error
+    t = atof(tmp); // float!
+    t = rtn + (t/(float)60.0); // convert from minutes to degrees
+    if ('S'==SentenceBufRaw[k+i+1]) t=0-t; // South=negative
+    else if ('N'!=SentenceBufRaw[k+i+1]) DPRINTF("Err2=%c", SentenceBufRaw[k+i+1]);
+    //DPRINTF("LAT=%f ",t);
+    rtn = t*(1<<23); // convert to a fixed point integer
+    if (0==rtn) rtn=1; // in the rare case when exactly 0, make it 1 as zero indicates invalid value
+    //DPRINTF("hex=%X ",rtn);
     return(rtn);
 }
 
@@ -349,6 +374,51 @@ int32_t NMEA_getAltitude(void) {
     if (0==rtn) rtn=1; // in the rare case when exactly at sealevel, return 1cm as it is not an error
     return(rtn);
 } // NMEA_getAltitude
+
+/* @brief search thru the NMEA sentence and return the STATUS byte based on Q and SAT
+ * Returns 0 if errors
+ */
+int32_t NMEA_getStatus(void) {
+    int32_t i;
+    int32_t fieldNum = 0;
+    int32_t rtn = 0;
+    int32_t k;
+    int32_t t;
+    char tmp[10];
+    for (i=0;i<SENTENCE_BUF_LENGTH;i++) { // search for the Q field
+        if (','==SentenceBufRaw[i]) {
+            fieldNum++;
+            if (fieldNum==6) {
+                i++;
+                break;
+            }
+        }
+    }
+    if (SENTENCE_BUF_LENGTH<=i) return(0); // didn't find the field - return 0
+    if ('1'!=SentenceBufRaw[i]) { // GPS not locked - values are not valid
+        gps_notLocked();
+    } else {
+        i++; // move to , before the SAT field
+        i++; // move to SAT field
+        for (k=0;((k+i)<SENTENCE_BUF_LENGTH) && (','!=SentenceBufRaw[k+i]);k++) {
+            tmp[k]=SentenceBufRaw[k+i];     // copy SAT to tmp buffer
+        }
+        tmp[k+1] = '\0';
+        t = atoi(tmp);
+        if (t>15) t=15; // clip # satellites to the max that fits in the QUAL field
+        gps_quality=t;
+        //DPRINTF("SAT=%s, %d",&tmp[0],gps_quality);
+        if (gps_quality>=4) { // need at least 4 satellites to get accurate readings
+            alt_valid=1;
+            lat_valid=1;
+            long_valid=1;
+        } else {
+            gps_notLocked();
+        }
+        rtn=((gps_quality<<4)|(GEO_READ_ONLY<<3)|(alt_valid<<2)|(lat_valid<<1)|(long_valid));
+    }
+    return(rtn);
+} // NMEA_getStatus
 
 
 // This adds the command class to the NIF and links in the handler
