@@ -157,7 +157,8 @@ static uint8_t NMEAState = NMEA_search; // state machine that assembles the Sent
  */
 bool NMEA_build(char c) {
     bool rtn = false;
-//    DPRINTF("%c",c);
+//    if (c<0x20 || c>0x7e) DPRINTF("x%02X",c);
+//    else DPRINTF("%c",c); // print every character from the GPS module for debugging only
     switch(NMEAState) {
         case NMEA_search: // search for the $
             if ('$'==c) {
@@ -255,7 +256,7 @@ void NMEA_parse(void) {
     if (NMEA_checksum()) { // checksum is good so compute the coordinates
         NMEA_getStatus(); // sets the status bits
         DPRINTF("Sats=%d ",gps_quality);
-        if (gps_quality >=4) {  // need at least 4 sattelites to be locked on
+        if (gps_quality >=4) {  // need at least 4 satellites to be locked on
             latitude  = NMEA_getLatitude();
             longitude = NMEA_getLongitude();
             altitude  = NMEA_getAltitude();
@@ -395,7 +396,7 @@ int32_t NMEA_getStatus(void) {
         }
     }
     if (SENTENCE_BUF_LENGTH<=i) return(0); // didn't find the field - return 0
-    if ('1'!=SentenceBufRaw[i]) { // GPS not locked - values are not valid
+    if ('0'==SentenceBufRaw[i]) { // GPS not locked - values are not valid
         gps_notLocked();
     } else {
         i++; // move to , before the SAT field

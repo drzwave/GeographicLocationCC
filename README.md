@@ -85,18 +85,14 @@ The first thing to do is to choose which interface you will use and then uncomme
 - I2C Interface:
     - Click on the .slcp file - select the Software Components tab - enter I2CSPM into the seach bar
         - Click on Platform->Driver->I2C->I2CSPM and Install it
-        - Name the component QWIIC
+        - Name the component GPS
         - Click on Configure
         - Reference clock frequency=0 (default), Speed mode=Fast mode (400kbit/s), 
             - Selected Module=I2C0 (or I2C1), 
             - Select the IOs which for ZRAD are SCL=PB00, SDA=PB02
-        - Sometimes SSv5 does not properly configure the GPIOs - click on Source
-        - Comment out the #warning
-        - Uncomment the QWIIC_PERIPHERAL to be I2C0 (or I2C1)
-        - Uncomment the PORT and PIN lines and set them to the correct GPIOs for both SCL and SDA
         - The project should build OK - the I2C peripheral will be automatically initialized
         - The I2CSPM_Transfer() function is then used to send/receive data over the I2C bus
-    - Follow the instructions in GPS module file (XA1110.c) to install the code into app.c 
+    - Follow the instructions in GPS module file (SAM\_M8Q.c) to install the code into app.c 
 
 # Adding Geographic Location CC V2 without hardware
 
@@ -145,7 +141,7 @@ RO is set to one when a GPS receiver is attached to the system indicating the Lo
 
 ### Qual
 
-The Quality field MUST be zero when the RO bit is 0. In systems with a GPS receiver, the QUAL field is an indicator of the signal quality of the GPS signal. A value of 0 indicates no GPS signal and the coordinates SHOULD be ignored (the Valid bits should be zero). The QUAL field typically contains the number of satellites in use with the last reading. Four satellites are required for an accurate reading. If more than 15 satellites are in use, the QUAL field is set to 15.
+The Quality field MUST be zero when the RO bit is 0. In systems with a GPS receiver, the QUAL field is an indicator of the signal quality of the GPS signal. A value of 0 indicates no GPS signal and the coordinates SHOULD be ignored (the Valid bits should be zero). The QUAL field typically contains the number of satellites in use with the last reading. Four satellites are required for an accurate reading. If more than 15 satellites are in use, the QUAL field is set to 15. Recommendation is to use values 0-3 as error codes: 0=no GPS receiver communication indicating hardware failure, 1=NMEA checksum failure indicating communication errors (out of sync or buffer over/under runs), 2 and 3 are user defined. 
 
 # Reference Documents
 

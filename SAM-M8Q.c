@@ -91,7 +91,7 @@ I2C_TransferReturn_TypeDef Fetch_GPS(void) { // fetch the GPS NMEA sentence from
             return(i2c_rtn); // failed
         }
         for (i2c_read=0; (i2c_read<I2C_BUF_SIZE) && !i2c_done; i2c_read++) {
-            if (0x0A==i2c_rxBuf[i2c_read]) {
+            if (0xFF==i2c_rxBuf[i2c_read]) {
                 blankcount++;
                 if (blankcount>=I2C_BUF_SIZE) {
                     i2c_done=true; // full buffer of 0x0a indicates there is no valid data - wait for the next sample
