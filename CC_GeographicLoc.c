@@ -34,15 +34,16 @@
 #include <em_core_generic.h>    // CORE_ATOMIC
 
 // uncomment to enable debugging info
-#define DEBUGPRINT
+//#define DEBUGPRINT
 #include "DebugPrint.h"
 #include <string.h>
+
 #include <stdlib.h>
 
 // GPS variables
-static int32_t longitude=0;
-static int32_t latitude=0;
-static int32_t altitude=0;
+static int32_t longitude=LON_DEFAULT;
+static int32_t latitude=LAT_DEFAULT;
+static int32_t altitude=ALT_DEFAULT;
 static uint8_t alt_valid=0;
 static uint8_t long_valid=0;
 static uint8_t lat_valid=0;
@@ -55,7 +56,20 @@ static uint8_t gps_quality=0;
 static uint8_t SentenceBufRaw[SENTENCE_BUF_LENGTH]; // holds the GPS sentence for later parsing
 static uint8_t NMEA_index; // index pointer into the buffer
 
-int32_t NMEA_getAltitude(void);
+//int32_t NMEA_getAltitude(void);
+
+int32_t GetLatitude(void) {
+    return(latitude);
+}
+int32_t GetLongitude(void) {
+    return(longitude);
+}
+int32_t GetAltitude(void) {
+    return(altitude);
+}
+int32_t GetStatus(void) {
+    return((gps_quality<<4)|(GEO_READ_ONLY<<3)|(alt_valid<<2)|(lat_valid<<1)|(long_valid));
+}
 
 /*
  * @brief handler for Geographic Location Command class when a command is received via Z-Wave
@@ -75,7 +89,9 @@ static received_frame_status_t CC_GeographicLoc_handler(
             // send the report
             output->frame->ZW_GeographicLocationReportV2Frame.cmdClass = COMMAND_CLASS_GEOGRAPHIC_LOCATION_V2;
             output->frame->ZW_GeographicLocationReportV2Frame.cmd      = GEOGRAPHIC_LOCATION_REPORT_V2;
+#ifdef CORE_ENTER_ATOMIC
             CORE_ENTER_ATOMIC(); /* prevent values from changing while assembling the frame to avoid corruption */
+#endif
             output->frame->ZW_GeographicLocationReportV2Frame.longitude1 = (uint8_t)((longitude>>24)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.longitude2 = (uint8_t)((longitude>>16)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.longitude3 = (uint8_t)((longitude>>8)&0xFF);
@@ -89,7 +105,9 @@ static received_frame_status_t CC_GeographicLoc_handler(
             output->frame->ZW_GeographicLocationReportV2Frame.altitude3  = (uint8_t)((altitude>>0)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.status    = ((gps_quality<<4)|(GEO_READ_ONLY<<3)|(alt_valid<<2)|(lat_valid<<1)|(long_valid));
             output->length = sizeof(ZW_GEOGRAPHIC_LOCATION_REPORT_V2_FRAME); /* triggers the send */
+#ifdef CORE_EXIT_ATOMIC
             CORE_EXIT_ATOMIC();
+#endif
             break;
         case GEOGRAPHIC_LOCATION_SET_V2:
             // TODO more to come here - reject it if read only
@@ -209,9 +227,9 @@ static void gps_notLocked(void) {
     alt_valid=0;
     lat_valid=0;
     long_valid=0;
-    altitude=0;
-    longitude=0;
-    latitude=0;
+    altitude=ALT_DEFAULT;
+    longitude=LON_DEFAULT;
+    latitude=LAT_DEFAULT;
 }
 
 /* @brief convert hex string of up to 8 chars to an integer. Zero if non-hex chars are found.
@@ -263,6 +281,9 @@ void NMEA_parse(void) {
         } else {
             gps_notLocked();
         }
+    } else {
+        gps_notLocked();
+        gps_quality = 1; // debugging value indicating the checksum has failed
     }
 }
 
@@ -274,7 +295,7 @@ int NMEA_getLongitude(void) {
     int fieldNum = 0;
     int rtn = 0;
     int k;
-    float t;
+    double t;
     char tmp[10];
     for (i=0;i<SENTENCE_BUF_LENGTH;i++) { // search for the longitude field which is the 2nd one
         if (','==SentenceBufRaw[i]) {
@@ -285,7 +306,7 @@ int NMEA_getLongitude(void) {
             }
         }
     }
-    if (SENTENCE_BUF_LENGTH<=i) return(0); // didn't find the field - return 0
+    if (SENTENCE_BUF_LENGTH<=i) return(LON_DEFAULT); // didn't find the field
     tmp[0]=SentenceBufRaw[i++];     // first 3 digits are degrees
     tmp[1]=SentenceBufRaw[i++]; 
     tmp[2]=SentenceBufRaw[i++]; 
@@ -301,7 +322,6 @@ int NMEA_getLongitude(void) {
     else if ('E'!=SentenceBufRaw[k+i+1]) DPRINTF("Err1=%c", SentenceBufRaw[k+i+1]);
     //DPRINTF("LON=%f ",t);
     rtn = t*(1<<23); // convert to a fixed point integer
-    if (0==rtn) rtn=1; // in the rare case when exactly 0, make it 1 as zero indicates the value is not valid
     //DPRINTF("hex=%X\r\n",rtn);
     return(rtn);
 }
@@ -314,7 +334,7 @@ int NMEA_getLatitude(void) {
     int fieldNum = 0;
     int rtn = 0;
     int k;
-    float t;
+    double t;
     char tmp[10];
     for (i=0;i<SENTENCE_BUF_LENGTH;i++) { // search for the latitude field which is the 2nd one
         if (','==SentenceBufRaw[i]) {
@@ -325,7 +345,7 @@ int NMEA_getLatitude(void) {
             }
         }
     }
-    if (SENTENCE_BUF_LENGTH<=i) return(0); // didn't find the field - return 0
+    if (SENTENCE_BUF_LENGTH<=i) return(LAT_DEFAULT); // didn't find the field
     tmp[0]=SentenceBufRaw[i++];     // first 2 digits are degrees
     tmp[1]=SentenceBufRaw[i++]; 
     tmp[2]='\0';
@@ -340,7 +360,6 @@ int NMEA_getLatitude(void) {
     else if ('N'!=SentenceBufRaw[k+i+1]) DPRINTF("Err2=%c", SentenceBufRaw[k+i+1]);
     //DPRINTF("LAT=%f ",t);
     rtn = t*(1<<23); // convert to a fixed point integer
-    if (0==rtn) rtn=1; // in the rare case when exactly 0, make it 1 as zero indicates invalid value
     //DPRINTF("hex=%X ",rtn);
     return(rtn);
 }
@@ -364,7 +383,7 @@ int32_t NMEA_getAltitude(void) {
             }
         }
     }
-    if (SENTENCE_BUF_LENGTH<=i) return(0); // didn't find the Altitude - return 0
+    if (SENTENCE_BUF_LENGTH<=i) return(ALT_DEFAULT); // didn't find the Altitude
     for (k=0;((k+i)<SENTENCE_BUF_LENGTH) && (','!=SentenceBufRaw[k+i]);k++) {
         tmp[k]=SentenceBufRaw[k+i];     // copy the altitude to tmp buffer
     }
@@ -372,7 +391,6 @@ int32_t NMEA_getAltitude(void) {
     t = atof(tmp);
     //DPRINTF("alt=%s = %f \r\n",tmp,t);  // https://community.silabs.com/s/article/floating-point-print-with-gcc?language=en_US required to enable printing of floats (adds 5K of flash!)
     rtn=(int32_t)(t*100);   // convert to centimeters and return an integer
-    if (0==rtn) rtn=1; // in the rare case when exactly at sealevel, return 1cm as it is not an error
     return(rtn);
 } // NMEA_getAltitude
 
@@ -395,8 +413,7 @@ int32_t NMEA_getStatus(void) {
             }
         }
     }
-    if (SENTENCE_BUF_LENGTH<=i) return(0); // didn't find the field - return 0
-    if ('0'==SentenceBufRaw[i]) { // GPS not locked - values are not valid
+    if ((i>=SENTENCE_BUF_LENGTH) || ('0'==SentenceBufRaw[i])) { // GPS not locked - values are not valid
         gps_notLocked();
     } else {
         i++; // move to , before the SAT field

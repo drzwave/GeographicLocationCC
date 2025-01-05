@@ -90,6 +90,7 @@ The first thing to do is to choose which interface you will use and then uncomme
         - Reference clock frequency=0 (default), Speed mode=Fast mode (400kbit/s), 
             - Selected Module=I2C0 (or I2C1), 
             - Select the IOs which for ZRAD are SCL=PB00, SDA=PB02
+            - Select the IOs which for Thunderboard (BRD2603) are SCL=PB05, SDA=PB06
         - The project should build OK - the I2C peripheral will be automatically initialized
         - The I2CSPM_Transfer() function is then used to send/receive data over the I2C bus
     - Follow the instructions in GPS module file (SAM\_M8Q.c) to install the code into app.c 

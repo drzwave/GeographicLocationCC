@@ -24,13 +24,22 @@
  #define GEO_READ_ONLY 0
 #endif
 
+// Default values when VALID=0 are invalid values
+#define LAT_DEFAULT 0x7FFFFFFF
+#define LON_DEFAULT 0x7FFFFFFF
+#define ALT_DEFAULT 0xFF800000
+
 bool NMEA_build(char c); // add a character to the NEMA Sentence buffer, return TRUE if complete sentence is in buffer
 bool NMEA_checksum(void) ; // TRUE if the Sentence Checksum is good
 void NMEA_parse(void);
 int NMEA_getLongitude(void);
 int NMEA_getLatitude(void);
-int NMEA_getaltitude(void);
+int NMEA_getAltitude(void);
 int32_t NMEA_getStatus(void);
+int32_t GetLatitude(void);
+int32_t GetLongitude(void);
+int32_t GetAltitude(void);
+int32_t GetStatus(void);
 
 
 void NMEA_Init(uint8_t * ptr); // Initialize the pointer to the NMEA buffer in the specific hardware interface
