@@ -290,11 +290,11 @@ void NMEA_parse(void) {
 /* @brief search thru the NMEA sentence and return the 32 bit longitude a signed fixed point decimal degress with 23 bits of fraction
  * Returns 0 if errors
  */
-int NMEA_getLongitude(void) {
-    int i;
-    int fieldNum = 0;
-    int rtn = 0;
-    int k;
+int32_t NMEA_getLongitude(void) {
+    int32_t i;
+    int32_t fieldNum = 0;
+    int32_t rtn = 0;
+    int32_t k;
     double t;
     char tmp[10];
     for (i=0;i<SENTENCE_BUF_LENGTH;i++) { // search for the longitude field which is the 2nd one
@@ -329,11 +329,11 @@ int NMEA_getLongitude(void) {
 /* @brief search thru the NMEA sentence and return the 32 bit latitude a signed fixed point decimal degress with 23 bits of fraction
  * Returns 0 if errors
  */
-int NMEA_getLatitude(void) {
-    int i;
-    int fieldNum = 0;
-    int rtn = 0;
-    int k;
+int32_t NMEA_getLatitude(void) {
+    int32_t i;
+    int32_t fieldNum = 0;
+    int32_t rtn = 0;
+    int32_t k;
     double t;
     char tmp[10];
     for (i=0;i<SENTENCE_BUF_LENGTH;i++) { // search for the latitude field which is the 2nd one

@@ -32,9 +32,9 @@
 bool NMEA_build(char c); // add a character to the NEMA Sentence buffer, return TRUE if complete sentence is in buffer
 bool NMEA_checksum(void) ; // TRUE if the Sentence Checksum is good
 void NMEA_parse(void);
-int NMEA_getLongitude(void);
-int NMEA_getLatitude(void);
-int NMEA_getAltitude(void);
+int32_t NMEA_getLongitude(void);
+int32_t NMEA_getLatitude(void);
+int32_t NMEA_getAltitude(void);
 int32_t NMEA_getStatus(void);
 int32_t GetLatitude(void);
 int32_t GetLongitude(void);
