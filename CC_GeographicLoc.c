@@ -20,11 +20,6 @@
  * 
  */
 
-// ISSUES:
-// how to update ZW_classcmd.h?
-// how to update the XML?
-// add code for storing in NVM
-
 #include "CC_GeographicLoc.h"
 #ifdef GEOLOCCC_INTERFACE_UART
 #include "UART_DRZ.h" // GPS receiver is on EUSART1
@@ -40,17 +35,24 @@
 
 #include <stdlib.h>
 
+#ifndef GPS_ENABLED
+// NVM structures to hold the GPS coordinates if GPS is NOT present
+static SgpsCoordinates gpsCoords;
+
+// File handle must be 16 bits (Z-Wave Stack NVM is 0x10000 and up)
+#define FILE_ID_GPS_COORDINATES (4200)
+
+#endif
+
 // GPS variables
 static int32_t longitude=LON_DEFAULT;
 static int32_t latitude=LAT_DEFAULT;
 static int32_t altitude=ALT_DEFAULT;
-static uint8_t alt_valid=0;
-static uint8_t long_valid=0;
-static uint8_t lat_valid=0;
 static uint8_t gps_quality=0;
 //static uint8_t gps_time[]="HH:MM:SS";
 //static uint8_t gps_satelites=0;
 
+#ifdef GPS_ENABLED
 // Max length is 255
 #define SENTENCE_BUF_LENGTH 100
 static uint8_t SentenceBufRaw[SENTENCE_BUF_LENGTH]; // holds the GPS sentence for later parsing
@@ -68,8 +70,10 @@ int32_t GetAltitude(void) {
     return(altitude);
 }
 int32_t GetStatus(void) {
-    return((gps_quality<<4)|(GEO_READ_ONLY<<3)|(alt_valid<<2)|(lat_valid<<1)|(long_valid));
+    return((gps_quality<<4)|(GEO_READ_ONLY<<3));
 }
+
+#endif
 
 /*
  * @brief handler for Geographic Location Command class when a command is received via Z-Wave
@@ -103,27 +107,47 @@ static received_frame_status_t CC_GeographicLoc_handler(
             output->frame->ZW_GeographicLocationReportV2Frame.altitude1  = (uint8_t)((altitude>>16)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.altitude2  = (uint8_t)((altitude>>8)&0xFF);
             output->frame->ZW_GeographicLocationReportV2Frame.altitude3  = (uint8_t)((altitude>>0)&0xFF);
-            output->frame->ZW_GeographicLocationReportV2Frame.status    = ((gps_quality<<4)|(GEO_READ_ONLY<<3)|(alt_valid<<2)|(lat_valid<<1)|(long_valid));
+            output->frame->ZW_GeographicLocationReportV2Frame.status    = ((gps_quality<<4)|(GEO_READ_ONLY<<3));
             output->length = sizeof(ZW_GEOGRAPHIC_LOCATION_REPORT_V2_FRAME); /* triggers the send */
 #ifdef CORE_EXIT_ATOMIC
             CORE_EXIT_ATOMIC();
 #endif
             break;
-        case GEOGRAPHIC_LOCATION_SET_V2:
-            // TODO more to come here - reject it if read only
+#ifndef GPS_ENABLED
+        case GEOGRAPHIC_LOCATION_SET_V2: // only supported if no GPS present
+            if (true == Check_not_legal_response_job(input->rx_options)) {   // check for multicast etc.
+                return RECEIVED_FRAME_STATUS_FAIL;
+            }
+            longitude=0;
+            longitude |= input->frame->ZW_GeographicLocationReportV2Frame.longitude1<<24;
+            longitude |= input->frame->ZW_GeographicLocationReportV2Frame.longitude2<<16;
+            longitude |= input->frame->ZW_GeographicLocationReportV2Frame.longitude3<<8;
+            longitude |= input->frame->ZW_GeographicLocationReportV2Frame.longitude4;
+            latitude=0;
+            latitude |= input->frame->ZW_GeographicLocationReportV2Frame.latitude1<<24;
+            latitude |= input->frame->ZW_GeographicLocationReportV2Frame.latitude2<<16;
+            latitude |= input->frame->ZW_GeographicLocationReportV2Frame.latitude3<<8;
+            latitude |= input->frame->ZW_GeographicLocationReportV2Frame.latitude4;
+            altitude = (int32_t)input->frame->ZW_GeographicLocationReportV2Frame.altitude1<<24 | 
+            (int32_t)input->frame->ZW_GeographicLocationReportV2Frame.altitude2<<16 | 
+            (int32_t)input->frame->ZW_GeographicLocationReportV2Frame.altitude3<<8;
+            altitude = altitude >> 8; // this sign extends the 24 bit number
+            gps_quality=0;
+            gpsCoords.latitude = latitude;
+            gpsCoords.longitude = longitude;
+            gpsCoords.altitude = altitude;
+            zpal_status_t tmp = ZAF_nvm_app_write(FILE_ID_GPS_COORDINATES, &gpsCoords, sizeof(gpsCoords));
+            if (ZPAL_STATUS_OK != tmp) {
+                DPRINTF("FAILED TO WRITENVM %X", tmp);
+            }
             break;
+#endif
         default:
             return RECEIVED_FRAME_STATUS_NO_SUPPORT;
             break;
     }
     return RECEIVED_FRAME_STATUS_SUCCESS;
 }
-
-#ifdef GPS_ENABLED
-// GPS conversion to GeoLocCC
-#else
-// Store the GPS values set in NVM
-#endif
 
 static uint8_t lifeline_reporting(ccc_pair_t * p_ccc_pair)
 {
@@ -132,19 +156,36 @@ static uint8_t lifeline_reporting(ccc_pair_t * p_ccc_pair)
   return 1;
 }
 
-// called by ZAF_Init() - Anything that needs initialization on reset - pick up values out of NVM or init the UART
+// called by ZAF_Init() - Anything that needs initialization on reset - pick up values out of NVM or init the hardware interface
 static void init(void)
 {
 #ifdef GPS_ENABLED
   NMEA_Init(SentenceBufRaw); // initialize the pointer to the NMEA buffer which the GPS interface will fill in
+#else
+    
+    if (ZPAL_STATUS_OK == ZAF_nvm_app_read(FILE_ID_GPS_COORDINATES, &gpsCoords, sizeof(gpsCoords))) { // pull values out of NVM
+    latitude = gpsCoords.latitude;  // assign them to RAM variables
+    longitude = gpsCoords.longitude;
+    altitude = gpsCoords.altitude;
+    } else {
+    latitude = LAT_DEFAULT; // if the NVM has never been written, assign the default values
+    longitude = LON_DEFAULT;
+    altitude = ALT_DEFAULT;
+    }
 #endif
 }
 
 // called when a factory reset is performed
 static void reset(void)
 {
-    // TODO reset the values in the NVM?
+#ifndef GPS_ENABLED
+    gpsCoords.latitude = LAT_DEFAULT;
+    gpsCoords.longitude = LON_DEFAULT;
+    gpsCoords.altitude = ALT_DEFAULT;
+#endif
 }
+
+#ifdef GPS_ENABLED
 
 typedef enum {  // NMEA state machine states
     NMEA_search,
@@ -220,13 +261,10 @@ bool NMEA_build(char c) {
     return(rtn);
 }
 
-/* zero the valid bits when the gps is not locked
+/* set values to the invalid value when the gps is not locked
  */
 static void gps_notLocked(void) {
     gps_quality=0;
-    alt_valid=0;
-    lat_valid=0;
-    long_valid=0;
     altitude=ALT_DEFAULT;
     longitude=LON_DEFAULT;
     latitude=LAT_DEFAULT;
@@ -426,18 +464,15 @@ int32_t NMEA_getStatus(void) {
         if (t>15) t=15; // clip # satellites to the max that fits in the QUAL field
         gps_quality=t;
         //DPRINTF("SAT=%s, %d",&tmp[0],gps_quality);
-        if (gps_quality>=4) { // need at least 4 satellites to get accurate readings
-            alt_valid=1;
-            lat_valid=1;
-            long_valid=1;
-        } else {
+        if (gps_quality<4) { // need at least 4 satellites to get accurate readings
             gps_notLocked();
         }
-        rtn=((gps_quality<<4)|(GEO_READ_ONLY<<3)|(alt_valid<<2)|(lat_valid<<1)|(long_valid));
+        rtn=((gps_quality<<4)|(GEO_READ_ONLY<<3));
     }
     return(rtn);
 } // NMEA_getStatus
 
+#endif
 
 // This adds the command class to the NIF and links in the handler
 REGISTER_CC_V5(COMMAND_CLASS_GEOGRAPHIC_LOCATION, GEOGRAPHIC_LOCATION_VERSION_V2, CC_GeographicLoc_handler, NULL, NULL, lifeline_reporting, 0, init, reset);
