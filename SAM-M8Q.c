@@ -28,8 +28,7 @@ add the following lines to the EVENT_APP_SWITCH_ON_OFF enum in events.h
   EVENT_APP_I2CTIMER_TIMEOUT,
   EVENT_APP_NMEA_READY,
 
-If the GPS module is connected and debugprint is enabled there should be NMEA sentences printed out the debug port.
-Note that it may take a minute or two for the GPS to lock onto satelites or move to a more open location.
+Note that it may take a minute or two for the GPS to lock onto satellites or move to a more open location.
 
  Typical GPS NMEA Sentence:
 $GNGGA,192925.000,4310.250847,N,07052.274013,W,1,14,0.72,42.543,M,-32.898,M,,*7C
@@ -50,10 +49,6 @@ $GNGGA,120908.00,4310.23951,N,07052.28237,W,1,08,2.33,33.5,M,-32.5,M,,Sats=8
 #include <AppTimer.h>
 #include "SAM-M8Q.h"
 #include "events.h"
-#define DEBUGPRINT
-#ifdef DEBUGPRINT
-#include <DebugPrint.h>
-#endif
 
 static uint8_t * NMEA_sentence; // Build the GPS NMEA sentence with the string needed - "$G.GGA..."
 static bool NMEA_valid = false;
@@ -65,7 +60,7 @@ bool is_NMEA_Valid(void) { // Is the NEMA sentence in the buffer valid?
     return(NMEA_valid);
 }
 
-I2C_TransferReturn_TypeDef Fetch_GPS(void) { // fetch the GPS NMEA sentence from the XA1110 GPS module over I2C and store it in the NMEA_sentence buffer
+I2C_TransferReturn_TypeDef Fetch_GPS(void) { // fetch the GPS NMEA sentence from the GPS module over I2C and store it in the NMEA_sentence buffer
     static I2C_TransferSeq_TypeDef i2c_dat;
     I2C_TransferReturn_TypeDef i2c_rtn;
     static uint8_t i2c_txBuf[I2C_BUF_SIZE];
@@ -74,7 +69,7 @@ I2C_TransferReturn_TypeDef Fetch_GPS(void) { // fetch the GPS NMEA sentence from
     bool i2c_done;
     int blankcount=0;
 
-    // Setup the struct for I2CSPM to read data out of XA1110
+    // Setup the struct for I2CSPM to read data out of GPS module
     i2c_dat.addr = I2C_GPS_ADDR<<1; // I2C address is 7-bits - the LSB is the READ/WRITE bit
     i2c_dat.flags = I2C_FLAG_READ;
     i2c_dat.buf[0].data= &i2c_rxBuf[0];
@@ -86,8 +81,6 @@ I2C_TransferReturn_TypeDef Fetch_GPS(void) { // fetch the GPS NMEA sentence from
     while (!i2c_done) {
         i2c_rtn=I2CSPM_Transfer(SL_I2CSPM_GPS_PERIPHERAL, &i2c_dat);
         if (i2cTransferDone!=i2c_rtn) {
-            if (i2cTransferNack==i2c_rtn) DPRINT("I2C NACK ");
-            else DPRINTF("I2C ERR=%x\n\r",i2c_rtn);
             return(i2c_rtn); // failed
         }
         for (i2c_read=0; (i2c_read<I2C_BUF_SIZE) && !i2c_done; i2c_read++) {
@@ -108,12 +101,10 @@ I2C_TransferReturn_TypeDef Fetch_GPS(void) { // fetch the GPS NMEA sentence from
     return(i2cTransferDone);
 }
 
-// This callback fetches the GPS coordinates every XA1110_POLLING_INTERVAL milliseconds
+// This callback fetches the GPS coordinates every GPS_POLLING_INTERVAL milliseconds
 void ZCB_I2CTimerCallBack(SSwTimer *pTimer) {
   static uint8_t FailCount;
-  zaf_event_distributor_enqueue_app_event(EVENT_APP_I2CTIMER_TIMEOUT); // TODO don't need this...
-//  DPRINT("\n+");
-  if (i2cTransferDone==Fetch_GPS()) {// fetch the GPS NMEA Sentence from the XA1110
+  if (i2cTransferDone==Fetch_GPS()) {// fetch the GPS NMEA Sentence from the GPS module
     // sometimes it fails to fetch the sentence in which case we just wait for the next interval
       FailCount=0;
   } else {

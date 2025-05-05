@@ -16,7 +16,7 @@
 #endif
 
 // Comment this out if NOT connected to a GPS receiver and only stores the location via SET.
-//#define GPS_ENABLED
+#define GPS_ENABLED
 
 #ifdef GPS_ENABLED
  #define GEO_READ_ONLY 1

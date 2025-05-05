@@ -112,6 +112,10 @@ static received_frame_status_t CC_GeographicLoc_handler(
 #ifdef CORE_EXIT_ATOMIC
             CORE_EXIT_ATOMIC();
 #endif
+#define GEOLOC_BEEP
+#ifdef GEOLOC_BEEP
+            TIMER0->CMD = 0x01; // start BEEP timer to beep each time a GeoLoc Report is sent indicating you are still in range
+#endif
             break;
 #ifndef GPS_ENABLED
         case GEOGRAPHIC_LOCATION_SET_V2: // only supported if no GPS present
